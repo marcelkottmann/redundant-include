@@ -32,14 +32,15 @@ import difflib.Delta;
 import difflib.DiffUtils;
 import difflib.Patch;
 
-
 public class Includer
 {
 	private static final Pattern TAG = Pattern
-		.compile("(<!--\\s*<(INCLUDE)\\s+file=\"([^\"]*)\">\\s*-->|<!--\\s*<(/INCLUDE)>\\s*-->)");
+			.compile("(<!--\\s*<(INCLUDE)\\s+file=\"([^\"]*)\">\\s*-->|<!--\\s*<(/INCLUDE)>\\s*-->)");
 
-	private static final Pattern EMPTY_TAGS = Pattern
-		.compile("(<!--\\s*<INCLUDE\\s+file=\"([^\"]*)\">\\s*-->)(<!--\\s*</INCLUDE>\\s*-->)");
+	public static final String CONTRACTED_FLAG = "<!-- CONTRACTED --->";
+
+	private static final Pattern EMPTY_TAGS = Pattern.compile("(<!--\\s*<INCLUDE\\s+file=\"([^\"]*)\">\\s*-->)"
+			+ CONTRACTED_FLAG + "(<!--\\s*</INCLUDE>\\s*-->)");
 
 	private static final String REDUNDANT_INCLUDE_DIR = "/redundant-includes";
 
@@ -60,7 +61,7 @@ public class Includer
 	}
 
 	private static void contract(PrintStream out, Context ctx, File outputDir) throws NoSuchAlgorithmException,
-		IOException
+			IOException
 	{
 		if (!allInOkState(ctx))
 		{
@@ -68,25 +69,28 @@ public class Includer
 			return;
 		}
 
-		if (outputDir.exists())
-		{
-			out.println("Output directory exists. Maybe already in contracted state?");
-			return;
-		}
-
+		int numExtracted = 0;
 		for (String file : ctx.getFileToResult().keySet())
 		{
 			File output = new File(outputDir, file);
 			StringBuffer content = ctx.getFileToResult().get(file).getDescriptors().get(0).getContent();
 
-			output.getParentFile().mkdirs();
-			FileWriter fw = new FileWriter(output);
-			fw.write(content.toString());
-			fw.close();
+			if (!CONTRACTED_FLAG.equals(content.toString()))
+			{
+				output.getParentFile().mkdirs();
+				FileWriter fw = new FileWriter(output);
+				fw.write(content.toString());
+				fw.close();
+				numExtracted++;
+			}
+			else
+			{
+				out.println("Skipping " + file + " because it's already contracted.");
+			}
 		}
+		out.println(numExtracted + " includes extracted.");
 
 		Set<File> origins = getOrigins(ctx);
-
 		for (File origin : origins)
 		{
 			ByteArrayOutputStream bos = new ByteArrayOutputStream();
@@ -97,10 +101,7 @@ public class Includer
 			fw.write(contracted.toString());
 			fw.close();
 		}
-
 		out.println(origins.size() + " files contracted.");
-		out.println(ctx.getFileToResult().keySet().size() + " includes extracted.");
-
 	}
 
 	protected static StringBuffer contract(String oldFileContent)
@@ -119,6 +120,7 @@ public class Includer
 				{
 					end = matcher.end();
 					result.append(oldFileContent.substring(start, end));
+					result.append(CONTRACTED_FLAG);
 				}
 				statckCounter++;
 			}
@@ -136,7 +138,7 @@ public class Includer
 	}
 
 	public static Status createStatus(String file, IncludeScanResult result) throws IOException,
-		NoSuchAlgorithmException
+			NoSuchAlgorithmException
 	{
 		Status status = new Status();
 
@@ -146,8 +148,8 @@ public class Includer
 
 		for (IncludeDescriptor d : result.getDescriptors())
 		{
-			String hash =
-				new String(Hex.encodeHex(MessageDigest.getInstance("MD5").digest(d.getContent().toString().getBytes())));
+			String hash = new String(Hex.encodeHex(MessageDigest.getInstance("MD5").digest(
+					d.getContent().toString().getBytes())));
 
 			List<IncludeDescriptor> descriptors = hashes.get(hash);
 			if (descriptors == null)
@@ -162,69 +164,70 @@ public class Includer
 
 		switch (hashes.size())
 		{
-			case 1:
-				status.setStatusCode(StatusCode.OK);
-				status.setNewHash(hashes.keySet().iterator().next());
+		case 1:
+			status.setStatusCode(StatusCode.OK);
+			status.setNewHash(hashes.keySet().iterator().next());
 			break;
-			case 2:
-				Iterator<Map.Entry<String, List<IncludeDescriptor>>> it = hashes.entrySet().iterator();
+		case 2:
+			Iterator<Map.Entry<String, List<IncludeDescriptor>>> it = hashes.entrySet().iterator();
 
-				Map.Entry<String, List<IncludeDescriptor>> descriptors1 = it.next();
-				Map.Entry<String, List<IncludeDescriptor>> descriptors2 = it.next();
+			Map.Entry<String, List<IncludeDescriptor>> descriptors1 = it.next();
+			Map.Entry<String, List<IncludeDescriptor>> descriptors2 = it.next();
 
-				String newHash = null;
-				String oldHash = null;
+			String newHash = null;
+			String oldHash = null;
 
-				int diff = descriptors1.getValue().size() - descriptors2.getValue().size();
-				if (diff == 0)
+			int diff = descriptors1.getValue().size() - descriptors2.getValue().size();
+			if (diff == 0)
+			{
+				long lastModified1 = maxLastModified(descriptors1);
+				long lastModified2 = maxLastModified(descriptors2);
+
+				if (lastModified1 > lastModified2)
 				{
-					long lastModified1 = maxLastModified(descriptors1);
-					long lastModified2 = maxLastModified(descriptors2);
-
-					if (lastModified1 > lastModified2)
-					{
-						newHash = descriptors1.getKey();
-						oldHash = descriptors2.getKey();
-					}
-					else if (lastModified1 < lastModified2)
-					{
-						newHash = descriptors2.getKey();
-						oldHash = descriptors1.getKey();
-					}
-					else
-					{
-						// equal
-						throw new RuntimeException("Unresolved conflict.");
-					}
+					newHash = descriptors1.getKey();
+					oldHash = descriptors2.getKey();
+				}
+				else if (lastModified1 < lastModified2)
+				{
+					newHash = descriptors2.getKey();
+					oldHash = descriptors1.getKey();
 				}
 				else
 				{
-					if (diff > 0)
-					{
-						newHash = descriptors2.getKey();
-						oldHash = descriptors1.getKey();
-					}
-					else
-					{
-						newHash = descriptors1.getKey();
-						oldHash = descriptors2.getKey();
-					}
+					// equal
+					throw new RuntimeException("Unresolved conflict.");
 				}
+			}
+			else
+			{
+				if (diff > 0)
+				{
+					newHash = descriptors2.getKey();
+					oldHash = descriptors1.getKey();
+				}
+				else
+				{
+					newHash = descriptors1.getKey();
+					oldHash = descriptors2.getKey();
+				}
+			}
 
-				status.setStatusCode(StatusCode.DIFFER);
-				status.setOldHash(oldHash);
-				status.setNewHash(newHash);
+			status.setStatusCode(StatusCode.DIFFER);
+			status.setOldHash(oldHash);
+			status.setNewHash(newHash);
 
 			break;
-			default:
-				status.setStatusCode(StatusCode.CONFLICT);
+		default:
+			status.setStatusCode(StatusCode.CONFLICT);
 			break;
 		}
 
 		return status;
 	}
 
-	private static void expand(PrintStream out, Context ctx, File inputDir) throws NoSuchAlgorithmException, IOException
+	private static void expand(PrintStream out, Context ctx, File inputDir) throws NoSuchAlgorithmException,
+			IOException
 	{
 
 		if (!inputDir.exists())
@@ -350,9 +353,9 @@ public class Includer
 				}
 			}
 		}
-		else if (args.length > 0 && "merge".equals(args[0]))
+		else if (args.length > 0 && ("merge".equals(args[0]) || "reversemerge".equals(args[0])))
 		{
-			merge(System.out, ctx);
+			merge(System.out, ctx, "reversemerge".equals(args[0]));
 		}
 		else if (args.length > 0 && "resolve".equals(args[0]))
 		{
@@ -370,10 +373,64 @@ public class Includer
 		{
 			expand(System.out, ctx, new File(workingDir + REDUNDANT_INCLUDE_DIR));
 		}
+		else if (args.length > 0 && "show".equals(args[0]))
+		{
+			if (args.length > 1)
+			{
+				show(System.out, ctx, args[1]);
+			}
+			else
+			{
+				System.out.println("Please provide template filename or hash.");
+			}
+		}
 		else
 		{
 			System.out.println("No command provided.");
 		}
+	}
+
+	private static void show(PrintStream out, Context ctx, String fileOrHash) throws NoSuchAlgorithmException,
+			IOException
+	{
+		IncludeScanResult result = ctx.getFileToResult().get(fileOrHash);
+		if (result == null)
+		{
+			// perhaps hash?
+			for (Map.Entry<String, IncludeScanResult> e : ctx.getFileToResult().entrySet())
+			{
+				Status status = createStatus(e.getKey(), e.getValue());
+				List<IncludeDescriptor> includeDescriptors = status.getHashes().get(fileOrHash);
+				if (includeDescriptors != null)
+				{
+					showFilename(out, e.getKey());
+					show(out, fileOrHash, includeDescriptors.get(0));
+				}
+			}
+		}
+		else
+		{
+			showFilename(out, fileOrHash);
+			Status status = createStatus(fileOrHash, result);
+			for (Map.Entry<String, List<IncludeDescriptor>> e : status.getHashes().entrySet())
+			{
+				show(out, e.getKey(), e.getValue().get(0));
+			}
+		}
+
+	}
+
+	private static void showFilename(PrintStream out, String file)
+	{
+		out.println(file);
+	}
+
+	private static void show(PrintStream out, String hash, IncludeDescriptor includeDescriptor)
+	{
+		out.println(hash);
+		out.println("--");
+		out.println(includeDescriptor.getContent());
+		out.println("----");
 	}
 
 	private static long maxLastModified(Entry<String, List<IncludeDescriptor>> descriptors)
@@ -389,7 +446,8 @@ public class Includer
 		return maxLastModified;
 	}
 
-	private static void merge(PrintStream out, Context ctx) throws IOException, NoSuchAlgorithmException
+	private static void merge(PrintStream out, Context ctx, boolean reverseMerge) throws IOException,
+			NoSuchAlgorithmException
 	{
 		// create status list
 		boolean conflictState = false;
@@ -407,7 +465,7 @@ public class Includer
 		if (conflictState)
 		{
 			out.println("Some includes are in state " + StatusCode.CONFLICT
-				+ " -> Please resolve the conflict first. Aborting merge:");
+					+ " -> Please resolve the conflict first. Aborting merge:");
 			for (Map.Entry<String, Status> e : statusMap.entrySet())
 			{
 				if (StatusCode.CONFLICT.equals(e.getValue().getStatusCode()))
@@ -418,19 +476,34 @@ public class Includer
 		}
 		else
 		{
-			merge(out, statusMap);
+			merge(out, statusMap, reverseMerge);
 		}
 	}
 
-	private static void merge(PrintStream out, Map<String, Status> statusMap) throws FileNotFoundException, IOException
+	private static void merge(PrintStream out, Map<String, Status> statusMap, boolean reverseMerge)
+			throws FileNotFoundException, IOException
 	{
 		for (String file : statusMap.keySet())
 		{
 			Status status = statusMap.get(file);
 			if (StatusCode.DIFFER.equals(status.getStatusCode()))
 			{
-				StringBuffer newContent = status.getNewDescriptors().get(0).getContent();
-				updateOldContent(status.getOldDescriptors(), newContent, statusMap, null);
+				List<String> hashes = new ArrayList<String>();
+				List<IncludeDescriptor> descriptorsToOverride = null;
+				if (reverseMerge)
+				{
+					hashes.add(status.getOldHash());
+					descriptorsToOverride = status.getNewDescriptors();
+				}
+				else
+				{
+					hashes.add(status.getNewHash());
+					descriptorsToOverride = status.getOldDescriptors();
+				}
+
+				System.out.println("Hash to use: " + hashes);
+
+				updateOldContent(descriptorsToOverride, statusMap, hashes);
 				out.println(file + " [M]");
 			}
 		}
@@ -475,37 +548,37 @@ public class Includer
 	}
 
 	public static void printStatus(PrintStream out, String file, IncludeScanResult result) throws IOException,
-		NoSuchAlgorithmException
+			NoSuchAlgorithmException
 	{
 		Status status = createStatus(file, result);
 		out.println(status.getStatusCode());
 		switch (status.getStatusCode())
 		{
-			case DIFFER:
-				out.println("New hash " + status.getNewHash());
-				out.println("Old hash " + status.getOldHash());
+		case DIFFER:
+			out.println("New hash " + status.getNewHash());
+			out.println("Old hash " + status.getOldHash());
 
-				out.println("Newest version in ");
-				for (IncludeDescriptor d : status.getNewDescriptors())
-				{
-					out.println(d.getOrigin());
-				}
+			out.println("Newest version in ");
+			for (IncludeDescriptor d : status.getNewDescriptors())
+			{
+				out.println(d.getOrigin());
+			}
 
-				printDiff(out, status.getOldDescriptors().get(0).getContent(), status.getNewDescriptors().get(0)
+			printDiff(out, status.getOldDescriptors().get(0).getContent(), status.getNewDescriptors().get(0)
 					.getContent());
 			break;
 
-			case CONFLICT:
-				printConflict(out, status);
+		case CONFLICT:
+			printConflict(out, status);
 			break;
-			case OK:
+		case OK:
 			// do nothing
 			break;
 		}
 	}
 
 	private static void resolve(PrintStream out, Context ctx, List<String> overrideHashes)
-		throws NoSuchAlgorithmException, IOException
+			throws NoSuchAlgorithmException, IOException
 	{
 		Map<String, Status> statusMap = new HashMap<String, Status>();
 		for (String file : ctx.getFileToResult().keySet())
@@ -520,12 +593,11 @@ public class Includer
 			{
 				for (String hash : overrideHashes)
 				{
-					List<IncludeDescriptor> correctDescriptors = status.getHashes().get(hash);
-					if (correctDescriptors != null)
+					if (status.getHashes().containsKey(hash))
 					{
-						List<IncludeDescriptor> allDescriptors = ctx.getFileToResult().get(status.getFile()).getDescriptors();
-						updateOldContent(allDescriptors, correctDescriptors.iterator().next().getContent(), statusMap,
-							overrideHashes);
+						List<IncludeDescriptor> allDescriptors = ctx.getFileToResult().get(status.getFile())
+								.getDescriptors();
+						updateOldContent(allDescriptors, statusMap, overrideHashes);
 						out.println(status.getFile() + " [R]");
 					}
 				}
@@ -578,6 +650,7 @@ public class Includer
 					{
 						end = child.getStart();
 						relevantContent.append(fileContent.substring(start, end));
+						relevantContent.append(Includer.CONTRACTED_FLAG);
 						start = child.getEnd();
 					}
 					relevantContent.append(fileContent.substring(start, td.getEnd()));
@@ -613,8 +686,8 @@ public class Includer
 		return lines;
 	}
 
-	private static void updateOldContent(List<IncludeDescriptor> oldDescriptors, StringBuffer newContent,
-		Map<String, Status> statusMap, List<String> overrideHashes) throws FileNotFoundException, IOException
+	private static void updateOldContent(List<IncludeDescriptor> oldDescriptors, Map<String, Status> statusMap,
+			List<String> overrideHashes) throws FileNotFoundException, IOException
 	{
 		for (IncludeDescriptor d : oldDescriptors)
 		{

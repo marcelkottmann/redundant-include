@@ -2,13 +2,14 @@ package com.github.pepe79.includer;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import junit.framework.Assert;
 
 import org.junit.Test;
-
 
 public class IncluderTest
 {
@@ -23,8 +24,8 @@ public class IncluderTest
 		List<IncludeDescriptor> newDescriptors = new ArrayList<IncludeDescriptor>();
 		IncludeDescriptor includeDescriptor = new IncludeDescriptor();
 		includeDescriptor.setFile(includeFilename);
-		includeDescriptor
-			.setContent(new StringBuffer("Before <!-- <INCLUDE file=\"test2\"> --><!-- </INCLUDE> --> After"));
+		includeDescriptor.setContent(new StringBuffer("Before <!-- <INCLUDE file=\"test2\"> -->"
+				+ Includer.CONTRACTED_FLAG + "<!-- </INCLUDE> --> After"));
 		newDescriptors.add(includeDescriptor);
 
 		List<IncludeDescriptor> newDescriptors2 = new ArrayList<IncludeDescriptor>();
@@ -45,14 +46,16 @@ public class IncluderTest
 		status2.setNewHash("hash2");
 		statusMap.put(includeFilename2, status2);
 
-		StringBuffer content =
-			new StringBuffer(
-				"Test content before include <!-- <INCLUDE file=\"test\"> --><!-- </INCLUDE> --> Test content after include.");
+		List<String> hashes = new ArrayList<String>();
+		hashes.add("hash1");
+		hashes.add("hash2");
 
-		StringBuffer result = Includer.expand(content, new StatusMapIncludeProvider(statusMap, null));
+		StringBuffer content = new StringBuffer("Test content before include <!-- <INCLUDE file=\"test\"> -->"
+				+ Includer.CONTRACTED_FLAG + "<!-- </INCLUDE> --> Test content after include.");
 
-		Assert
-			.assertEquals(
+		StringBuffer result = Includer.expand(content, new StatusMapIncludeProvider(statusMap, hashes));
+
+		Assert.assertEquals(
 				"Test content before include <!-- <INCLUDE file=\"test\"> -->Before <!-- <INCLUDE file=\"test2\"> -->Inner content<!-- </INCLUDE> --> After<!-- </INCLUDE> --> Test content after include.",
 				result.toString());
 	}
@@ -60,12 +63,10 @@ public class IncluderTest
 	@Test
 	public void testNestedUnexpand()
 	{
-		String old =
-			"Test content before include <!-- <INCLUDE file=\"test\"> --> Test content before inner include <!-- <INCLUDE file=\"test2\"> --> Include content <!-- </INCLUDE> --> Test content after inner include. <!-- </INCLUDE> --> Test content after include.";
+		String old = "Test content before include <!-- <INCLUDE file=\"test\"> --> Test content before inner include <!-- <INCLUDE file=\"test2\"> --> Include content <!-- </INCLUDE> --> Test content after inner include. <!-- </INCLUDE> --> Test content after include.";
 		StringBuffer result = Includer.contract(old);
-		Assert.assertEquals(
-			"Test content before include <!-- <INCLUDE file=\"test\"> --><!-- </INCLUDE> --> Test content after include.",
-			result.toString());
+		Assert.assertEquals("Test content before include <!-- <INCLUDE file=\"test\"> -->" + Includer.CONTRACTED_FLAG
+				+ "<!-- </INCLUDE> --> Test content after include.", result.toString());
 	}
 
 	@Test
@@ -87,14 +88,15 @@ public class IncluderTest
 		status.setNewHash("hash1");
 		statusMap.put(includeFilename, status);
 
-		StringBuffer content =
-			new StringBuffer(
-				"Test content before include <!-- <INCLUDE file=\"test\"> --><!-- </INCLUDE> --> Test content after include.");
+		List<String> hashes = new ArrayList<String>();
+		hashes.add("hash1");
 
-		StringBuffer result = Includer.expand(content, new StatusMapIncludeProvider(statusMap, null));
+		StringBuffer content = new StringBuffer("Test content before include <!-- <INCLUDE file=\"test\"> -->"
+				+ Includer.CONTRACTED_FLAG + "<!-- </INCLUDE> --> Test content after include.");
 
-		Assert
-			.assertEquals(
+		StringBuffer result = Includer.expand(content, new StatusMapIncludeProvider(statusMap, hashes));
+
+		Assert.assertEquals(
 				"Test content before include <!-- <INCLUDE file=\"test\"> -->Inside include<!-- </INCLUDE> --> Test content after include.",
 				result.toString());
 
@@ -103,12 +105,10 @@ public class IncluderTest
 	@Test
 	public void testSimpleUnexpand()
 	{
-		String old =
-			"Test content before include <!-- <INCLUDE file=\"test\"> --> Include content <!-- </INCLUDE> --> Test content after include.";
+		String old = "Test content before include <!-- <INCLUDE file=\"test\"> --> Include content <!-- </INCLUDE> --> Test content after include.";
 		StringBuffer result = Includer.contract(old);
-		Assert.assertEquals(
-			"Test content before include <!-- <INCLUDE file=\"test\"> --><!-- </INCLUDE> --> Test content after include.",
-			result.toString());
+		Assert.assertEquals("Test content before include <!-- <INCLUDE file=\"test\"> -->" + Includer.CONTRACTED_FLAG
+				+ "<!-- </INCLUDE> --> Test content after include.", result.toString());
 	}
 
 }
