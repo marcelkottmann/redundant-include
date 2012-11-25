@@ -3,10 +3,10 @@ package com.github.pepe79.includer;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileFilter;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
-import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.io.StringReader;
@@ -20,6 +20,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Properties;
 import java.util.Set;
 import java.util.Stack;
 import java.util.regex.Matcher;
@@ -34,15 +35,24 @@ import difflib.Patch;
 
 public class Includer
 {
-	private static final Pattern TAG = Pattern
-			.compile("(<!--\\s*<(INCLUDE)\\s+file=\"([^\"]*)\">\\s*-->|<!--\\s*<(/INCLUDE)>\\s*-->)");
 
 	public static final String CONTRACTED_FLAG = "<!-- CONTRACTED --->";
 
-	private static final Pattern EMPTY_TAGS = Pattern.compile("(<!--\\s*<INCLUDE\\s+file=\"([^\"]*)\">\\s*-->)"
-			+ CONTRACTED_FLAG + "(<!--\\s*</INCLUDE>\\s*-->)");
-
 	private static final String REDUNDANT_INCLUDE_DIR = "/redundant-includes";
+
+	private static String tagName = "INCLUDE";
+
+	private static Pattern createSearchPattern()
+	{
+		return Pattern.compile("(<!--\\s*<(" + tagName + ")\\s+file=\"([^\"]*)\">\\s*-->|<!--\\s*<(/" + tagName
+				+ ")>\\s*-->)");
+	}
+
+	private static Pattern createEmptyTagsSearchPattern()
+	{
+		return Pattern.compile("(<!--\\s*<" + tagName + "\\s+file=\"([^\"]*)\">\\s*-->)" + CONTRACTED_FLAG
+				+ "(<!--\\s*</" + tagName + ">\\s*-->)");
+	}
 
 	private static boolean allInOkState(Context ctx) throws NoSuchAlgorithmException, IOException
 	{
@@ -107,14 +117,14 @@ public class Includer
 	protected static StringBuffer contract(String oldFileContent)
 	{
 		StringBuffer result = new StringBuffer();
-		Matcher matcher = TAG.matcher(oldFileContent);
+		Matcher matcher = createSearchPattern().matcher(oldFileContent);
 
 		int statckCounter = 0;
 		int start = 0;
 		int end = -1;
 		while (matcher.find())
 		{
-			if ("INCLUDE".equals(matcher.group(2)))
+			if (tagName.equals(matcher.group(2)))
 			{
 				if (statckCounter == 0)
 				{
@@ -169,6 +179,7 @@ public class Includer
 			status.setNewHash(hashes.keySet().iterator().next());
 			break;
 		case 2:
+			boolean conflict = false;
 			Iterator<Map.Entry<String, List<IncludeDescriptor>>> it = hashes.entrySet().iterator();
 
 			Map.Entry<String, List<IncludeDescriptor>> descriptors1 = it.next();
@@ -195,8 +206,7 @@ public class Includer
 				}
 				else
 				{
-					// equal
-					throw new RuntimeException("Unresolved conflict.");
+					conflict = true; // must be resolved manually
 				}
 			}
 			else
@@ -213,11 +223,17 @@ public class Includer
 				}
 			}
 
-			status.setStatusCode(StatusCode.DIFFER);
-			status.setOldHash(oldHash);
-			status.setNewHash(newHash);
-
-			break;
+			if (!conflict)
+			{
+				status.setStatusCode(StatusCode.DIFFER);
+				status.setOldHash(oldHash);
+				status.setNewHash(newHash);
+				break;
+			}
+			else
+			{
+				// goes to conflict case statement
+			}
 		default:
 			status.setStatusCode(StatusCode.CONFLICT);
 			break;
@@ -282,7 +298,7 @@ public class Includer
 	protected static StringBuffer expand(StringBuffer newContent, IncludeProvider includeProvider)
 	{
 		StringBuffer result = new StringBuffer();
-		Matcher m = EMPTY_TAGS.matcher(newContent);
+		Matcher m = createEmptyTagsSearchPattern().matcher(newContent);
 
 		int start = 0;
 		int end = -1;
@@ -318,16 +334,27 @@ public class Includer
 	{
 		String workingDir = System.getProperty("user.dir");
 
-		System.out.println("Scanning folder " + workingDir);
+		File includerProperties = new File(workingDir + "/rinc.conf");
+		if (includerProperties.exists())
+		{
+			FileReader fr = new FileReader(includerProperties);
+			Properties p = new Properties();
+			p.load(fr);
+			fr.close();
 
+			tagName = p.getProperty("tagName");
+		}
+
+		System.out.println("Scanning folder " + workingDir);
 		File rootFolderFile = new File(workingDir);
-		List<File> files = Arrays.asList(rootFolderFile.listFiles(new FilenameFilter()
+		List<File> files = Arrays.asList(rootFolderFile.listFiles(new FileFilter()
 		{
 			@Override
-			public boolean accept(File dir, String name)
+			public boolean accept(File pathname)
 			{
-				return name.endsWith(".html");
+				return !pathname.isDirectory();
 			}
+
 		}));
 
 		// scan files
@@ -619,11 +646,11 @@ public class Includer
 			IOUtils.copy(new FileReader(f), bos);
 			String fileContent = new String(bos.toByteArray());
 
-			Matcher matcher = TAG.matcher(fileContent);
+			Matcher matcher = createSearchPattern().matcher(fileContent);
 
 			while (matcher.find())
 			{
-				if ("INCLUDE".equals(matcher.group(2)))
+				if (tagName.equals(matcher.group(2)))
 				{
 					IncludeDescriptor td = new IncludeDescriptor();
 					td.setStart(matcher.end());
