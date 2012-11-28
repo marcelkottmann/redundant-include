@@ -2,6 +2,9 @@
 
 redundant-include is a command line based tool to control same (reduandant) content which is spread over several different text files. 
 
+## Install ##
+>     mvn clean install assembly:single
+
 ## Getting started in one minute ##
 Create *file1.txt*:
 A redundant section is marked in the file with a special start- and end-marker.
