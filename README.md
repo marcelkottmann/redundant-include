@@ -59,7 +59,7 @@ Full command list
 <!-- </INC> -->
 <!-- <INC file="show"> -->
 
-     rinc show (<file>|<hash>)
+     rinc show [<file>|<hash>]
 
 <!-- </INC> -->
 <!-- <INC file="merge"> -->
@@ -85,6 +85,11 @@ Full command list
 <!-- <INC file="expand"> -->
 
      rinc expand
+
+<!-- </INC> -->
+<!-- <INC file="help"> -->
+
+     rinc help
 
 <!-- </INC> -->
 
@@ -113,7 +118,7 @@ The include-content version is *newer* if and only if it occurs in fewer origin 
 
 <!-- <INC file="show"> -->
 
-     rinc show (<file>|<hash>)
+     rinc show [<file>|<hash>]
 
 <!-- </INC> -->
 
@@ -187,6 +192,17 @@ The `contract` command is only applicable to a working directory where all inclu
 Use the (read and write) `expand` command to undo a `contract` command. It reads all extracted include-snippets from the directory "redundant-includes" from your current working directory and fills it in the include-markers in the origin files.
 
 The `expand` command is only applicable if the working directory has been contracted first, which is determined by the existence of the "redundant-includes"-directory.
+
+
+##rinc help##
+
+<!-- <INC file="help"> -->
+
+     rinc help
+
+<!-- </INC> -->
+
+Shows a brief help text of rinc commands.
 
 <!---
 ##Todos##

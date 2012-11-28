@@ -345,7 +345,6 @@ public class Includer
 			tagName = p.getProperty("tagName");
 		}
 
-		System.out.println("Scanning folder " + workingDir);
 		File rootFolderFile = new File(workingDir);
 		List<File> files = Arrays.asList(rootFolderFile.listFiles(new FileFilter()
 		{
@@ -411,10 +410,26 @@ public class Includer
 				System.out.println("Please provide template filename or hash.");
 			}
 		}
+		else if (args.length > 0 && "help".equals(args[0]))
+		{
+			printHelp(System.out);
+		}
 		else
 		{
-			System.out.println("No command provided.");
+			System.out.println("No command provided. Type `rinc help` to see commands.");
 		}
+	}
+
+	private static void printHelp(PrintStream out)
+	{
+		System.out.println("rinc status");
+		System.out.println("rinc show [<file>|<hash>]");
+		System.out.println("rinc merge");
+		System.out.println("rinc reversemerge");
+		System.out.println("rinc resolve <hash> [<hash>...]");
+		System.out.println("rinc contract");
+		System.out.println("rinc expand");
+		System.out.println("rinc help");
 	}
 
 	private static void show(PrintStream out, Context ctx, String fileOrHash) throws NoSuchAlgorithmException,
