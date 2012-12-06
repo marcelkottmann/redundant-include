@@ -3,7 +3,6 @@ package com.github.pepe79.includer;
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileFilter;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
@@ -14,6 +13,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -27,7 +27,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.codec.binary.Hex;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.filefilter.FileFilterUtils;
+import org.apache.commons.io.filefilter.IOFileFilter;
+import org.apache.commons.io.filefilter.TrueFileFilter;
 
 import difflib.Delta;
 import difflib.DiffUtils;
@@ -38,7 +43,7 @@ public class Includer
 
 	public static final String CONTRACTED_FLAG = "<!-- CONTRACTED --->";
 
-	private static final String REDUNDANT_INCLUDE_DIR = "/redundant-includes";
+	private static final String REDUNDANT_INCLUDE_DIR_NAME = "redundant-includes";
 
 	private static String tagName = "INCLUDE";
 
@@ -346,15 +351,18 @@ public class Includer
 		}
 
 		File rootFolderFile = new File(workingDir);
-		List<File> files = Arrays.asList(rootFolderFile.listFiles(new FileFilter()
-		{
-			@Override
-			public boolean accept(File pathname)
-			{
-				return !pathname.isDirectory();
-			}
 
-		}));
+		Collection<File> files = FileUtils.listFiles(
+				rootFolderFile,
+				FileFilterUtils.fileFileFilter(),
+				FileFilterUtils.notFileFilter(FileFilterUtils.or(
+						FileFilterUtils.nameFileFilter(REDUNDANT_INCLUDE_DIR_NAME),
+						FileFilterUtils.prefixFileFilter("."))));
+
+//		for (File f : files)
+//		{
+//			System.out.println(f);
+//		}
 
 		// scan files
 		Context ctx = scan(files);
@@ -366,7 +374,7 @@ public class Includer
 			{
 				System.out.println("No includes found.");
 			}
-			else if (new File(workingDir + REDUNDANT_INCLUDE_DIR).exists())
+			else if (new File(workingDir + "/" + REDUNDANT_INCLUDE_DIR_NAME).exists())
 			{
 				System.out.println("Seems like directory is in contracted state. Please expand to see the status.");
 			}
@@ -393,11 +401,11 @@ public class Includer
 		}
 		else if (args.length > 0 && "contract".equals(args[0]))
 		{
-			contract(System.out, ctx, new File(workingDir + REDUNDANT_INCLUDE_DIR));
+			contract(System.out, ctx, new File(workingDir + "/" + REDUNDANT_INCLUDE_DIR_NAME));
 		}
 		else if (args.length > 0 && "expand".equals(args[0]))
 		{
-			expand(System.out, ctx, new File(workingDir + REDUNDANT_INCLUDE_DIR));
+			expand(System.out, ctx, new File(workingDir + "/" + REDUNDANT_INCLUDE_DIR_NAME));
 		}
 		else if (args.length > 0 && "show".equals(args[0]))
 		{
@@ -648,7 +656,7 @@ public class Includer
 
 	}
 
-	private static Context scan(List<File> files) throws IOException
+	private static Context scan(Collection<File> files) throws IOException
 	{
 		Context ctx = new Context();
 
