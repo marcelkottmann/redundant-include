@@ -41,7 +41,7 @@ import difflib.Patch;
 public class Includer
 {
 
-	public static final String CONTRACTED_FLAG = "<!-- CONTRACTED --->";
+	public static final String CONTRACTED_FLAG = "<!-- CONTRACTED -->";
 
 	private static final String REDUNDANT_INCLUDE_DIR_NAME = "redundant-includes";
 
