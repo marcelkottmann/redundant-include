@@ -28,11 +28,8 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.filefilter.FileFilterUtils;
-import org.apache.commons.io.filefilter.IOFileFilter;
-import org.apache.commons.io.filefilter.TrueFileFilter;
 
 import difflib.Delta;
 import difflib.DiffUtils;
@@ -359,16 +356,9 @@ public class Includer
 						FileFilterUtils.nameFileFilter(REDUNDANT_INCLUDE_DIR_NAME),
 						FileFilterUtils.prefixFileFilter("."))));
 
-//		for (File f : files)
-//		{
-//			System.out.println(f);
-//		}
-
-		// scan files
-		Context ctx = scan(files);
-
 		if (args.length > 0 && "status".equals(args[0]))
 		{
+			Context ctx = scan(files);
 			Set<String> includeFiles = ctx.getFileToResult().keySet();
 			if (includeFiles.isEmpty())
 			{
@@ -389,6 +379,7 @@ public class Includer
 		}
 		else if (args.length > 0 && ("merge".equals(args[0]) || "reversemerge".equals(args[0])))
 		{
+			Context ctx = scan(files);
 			merge(System.out, ctx, "reversemerge".equals(args[0]));
 		}
 		else if (args.length > 0 && "resolve".equals(args[0]))
@@ -397,20 +388,24 @@ public class Includer
 			// remove first argument, i.e. "resolve"
 			overrideHashes.remove(0);
 
+			Context ctx = scan(files);
 			resolve(System.out, ctx, overrideHashes);
 		}
 		else if (args.length > 0 && "contract".equals(args[0]))
 		{
+			Context ctx = scan(files);
 			contract(System.out, ctx, new File(workingDir + "/" + REDUNDANT_INCLUDE_DIR_NAME));
 		}
 		else if (args.length > 0 && "expand".equals(args[0]))
 		{
+			Context ctx = scan(files);
 			expand(System.out, ctx, new File(workingDir + "/" + REDUNDANT_INCLUDE_DIR_NAME));
 		}
 		else if (args.length > 0 && "show".equals(args[0]))
 		{
 			if (args.length > 1)
 			{
+				Context ctx = scan(files);
 				show(System.out, ctx, args[1]);
 			}
 			else

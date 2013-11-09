@@ -7,7 +7,7 @@ import java.util.Map;
 public class StatusMapIncludeProvider implements IncludeProvider
 {
 
-	private static IncludeDescriptor selectDescriptor(Map<String, Status> statusMap, String file,
+	private IncludeDescriptor selectDescriptor(Map<String, Status> statusMap, String file,
 		List<String> overrideHashes)
 	{
 		if (overrideHashes != null)
